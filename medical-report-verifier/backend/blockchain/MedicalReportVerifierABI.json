@@ -1,0 +1,90 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "reportHash",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "patientId",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "labId",
+        "type": "string"
+      }
+    ],
+    "name": "addReport",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "reportHash",
+        "type": "string"
+      }
+    ],
+    "name": "verifyReport",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "reportHash",
+        "type": "string"
+      }
+    ],
+    "name": "getReport",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "reportHash",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "patientId",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "labId",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "exists",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct MedicalReportVerifier.Report",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
