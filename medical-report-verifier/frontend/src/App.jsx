@@ -11,6 +11,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import VerifyPage from "./pages/VerifyPage"; // 👈 ADD QR VERIFICATION PAGE
 
 // Role-based dashboards
 import PatientDashboard from "./pages/PatientDashboard";
@@ -86,6 +87,11 @@ const App = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify" element={<VerifyReport />} />
+        
+        {/* 👈 QR CODE VERIFICATION ROUTES */}
+        <Route path="/verify-qr" element={<VerifyPage />} />
+        <Route path="/verify-qr/:hash" element={<VerifyPage />} />
+        <Route path="/scan-qr" element={<VerifyPage />} />
 
         {/* Role-based Dashboard Route */}
         <Route

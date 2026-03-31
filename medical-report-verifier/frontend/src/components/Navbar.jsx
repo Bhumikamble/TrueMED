@@ -3,11 +3,6 @@ import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
 import { toast } from "react-toastify";
 
-const navLinkStyle = ({ isActive }) =>
-  `rounded-lg px-3 py-2 text-sm font-medium transition ${
-    isActive ? "bg-brand-100 text-brand-700" : "text-slate-700 hover:bg-slate-100"
-  }`;
-
 const Navbar = () => {
   const { user, logout, getDisplayName } = useAuth();
   const navigate = useNavigate();
@@ -29,280 +24,304 @@ const Navbar = () => {
   const getNavLinks = () => {
     if (!user) {
       return [
-        { name: "Home", path: "/", show: true },
-        { name: "Verify Report", path: "/verify", show: true },
+        { name: "Home", path: "/", icon: "🏠" },
+        { name: "Features", path: "/#features", icon: "⭐" },
+        { name: "How It Works", path: "/#how-it-works", icon: "📖" },
       ];
     }
 
     switch (user.role) {
       case "patient":
         return [
-          { name: "Home", path: "/", show: true },
-          { name: "Dashboard", path: "/dashboard", show: true },
-          { name: "My Reports", path: "/my-reports", show: true },
-          { name: "Shared Reports", path: "/shared-reports", show: true },
-          { name: "Verify Report", path: "/verify", show: true },
-          { name: "Consent", path: "/consent-management", show: true },
+          { name: "Dashboard", path: "/dashboard", icon: "📊" },
+          { name: "My Reports", path: "/my-reports", icon: "📄" },
+          { name: "Shared", path: "/shared-reports", icon: "🔗" },
+          { name: "Verify", path: "/verify", icon: "🔍" },
+          { name: "QR Verify", path: "/verify-qr", icon: "📱" },
+          { name: "Consent", path: "/consent-management", icon: "🔐" },
         ];
       
       case "lab":
         return [
-          { name: "Home", path: "/", show: true },
-          { name: "Dashboard", path: "/dashboard", show: true },
-          { name: "Upload Report", path: "/upload", show: true },
-          { name: "My Reports", path: "/lab-reports", show: true },
-          { name: "Verify Report", path: "/verify", show: true },
+          { name: "Dashboard", path: "/dashboard", icon: "📊" },
+          { name: "Upload", path: "/upload", icon: "📤" },
+          { name: "Reports", path: "/lab-reports", icon: "📋" },
+          { name: "Verify", path: "/verify", icon: "🔍" },
+          { name: "QR Verify", path: "/verify-qr", icon: "📱" },
         ];
       
       case "employer":
         return [
-          { name: "Home", path: "/", show: true },
-          { name: "Dashboard", path: "/dashboard", show: true },
-          { name: "Shared Reports", path: "/shared-reports", show: true },
-          { name: "Access Requests", path: "/access-requests", show: true },
-          { name: "Verify Report", path: "/verify", show: true },
+          { name: "Dashboard", path: "/dashboard", icon: "📊" },
+          { name: "Shared", path: "/shared-reports", icon: "🔗" },
+          { name: "Requests", path: "/access-requests", icon: "📨" },
+          { name: "Verify", path: "/verify", icon: "🔍" },
+          { name: "QR Verify", path: "/verify-qr", icon: "📱" },
         ];
       
       case "admin":
         return [
-          { name: "Home", path: "/", show: true },
-          { name: "Admin Panel", path: "/admin", show: true },
-          { name: "Users", path: "/admin/users", show: true },
-          { name: "Reports", path: "/admin/reports", show: true },
-          { name: "Analytics", path: "/admin/analytics", show: true },
+          { name: "Dashboard", path: "/dashboard", icon: "📊" },
+          { name: "Users", path: "/admin/users", icon: "👥" },
+          { name: "Reports", path: "/admin/reports", icon: "📄" },
+          { name: "Analytics", path: "/admin/analytics", icon: "📈" },
+          { name: "QR Verify", path: "/verify-qr", icon: "📱" },
         ];
       
       default:
         return [
-          { name: "Home", path: "/", show: true },
-          { name: "Verify Report", path: "/verify", show: true },
+          { name: "Home", path: "/", icon: "🏠" },
+          { name: "Features", path: "/#features", icon: "⭐" },
+          { name: "How It Works", path: "/#how-it-works", icon: "📖" },
         ];
     }
   };
 
-  // Get role badge color
-  const getRoleBadgeColor = () => {
-    if (!user) return "bg-gray-100 text-gray-700";
-    switch (user.role) {
-      case "patient":
-        return "bg-blue-100 text-blue-800";
-      case "lab":
-        return "bg-green-100 text-green-800";
-      case "employer":
-        return "bg-purple-100 text-purple-800";
-      case "admin":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
-
-  // Get role icon
-  const getRoleIcon = () => {
+  // Get role badge configuration
+  const getRoleConfig = () => {
     if (!user) return null;
-    switch (user.role) {
-      case "patient":
-        return "👤";
-      case "lab":
-        return "🏥";
-      case "employer":
-        return "💼";
-      case "admin":
-        return "⚙️";
-      default:
-        return null;
-    }
+    const roleConfigs = {
+      patient: { color: "bg-blue-100 text-blue-700", icon: "👤", label: "Patient" },
+      lab: { color: "bg-green-100 text-green-700", icon: "🏥", label: "Lab" },
+      employer: { color: "bg-purple-100 text-purple-700", icon: "💼", label: "Employer" },
+      admin: { color: "bg-red-100 text-red-700", icon: "⚙️", label: "Admin" },
+    };
+    return roleConfigs[user.role];
   };
 
   const navLinks = getNavLinks();
+  const roleConfig = getRoleConfig();
+
+  // Scroll to section handler
+  const scrollToSection = (e, sectionId) => {
+    e.preventDefault();
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-white/70 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          {/* Logo */}
-          <Link to="/" className="text-2xl font-bold text-brand-900">
-            TrueMED
-            <span className="ml-1 text-xs text-gray-500">Blockchain Medical Reports</span>
-          </Link>
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-2 group">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
+                <span className="text-white text-lg font-bold">TM</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                  TrueMED
+                </span>
+                <span className="text-xs text-gray-500 hidden sm:block">Blockchain Medical Reports</span>
+              </div>
+            </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              link.show && (
-                <NavLink key={link.path} to={link.path} className={navLinkStyle}>
-                  {link.name}
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-1">
+              {navLinks.map((link) => (
+                <NavLink
+                  key={link.path}
+                  to={link.path}
+                  onClick={(e) => {
+                    if (link.path.startsWith('/#')) {
+                      e.preventDefault();
+                      const sectionId = link.path.replace('/#', '');
+                      scrollToSection(e, sectionId);
+                    }
+                  }}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      isActive
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                    }`
+                  }
+                >
+                  <span className="text-base">{link.icon}</span>
+                  <span>{link.name}</span>
                 </NavLink>
-              )
-            ))}
-          </nav>
+              ))}
+            </div>
 
-          {/* User Menu */}
-          <div className="flex items-center gap-2">
-            {user ? (
-              <div className="flex items-center gap-3">
-                {/* User Info */}
-                <div className="hidden md:flex items-center gap-2">
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getRoleBadgeColor()}`}>
-                    {getRoleIcon()} {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                  </span>
-                  <span className="text-sm text-gray-700">
-                    {getDisplayName()}
-                  </span>
-                </div>
+            {/* User Menu */}
+            <div className="flex items-center gap-3">
+              {user ? (
+                <>
+                  {/* Desktop User Section */}
+                  <div className="hidden md:flex items-center gap-3">
+                    {/* Role Badge */}
+                    {roleConfig && (
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${roleConfig.color}`}>
+                        <span>{roleConfig.icon}</span>
+                        <span>{roleConfig.label}</span>
+                      </span>
+                    )}
+                    
+                    {/* User Avatar */}
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-1.5 border border-gray-100">
+                      <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                        <span className="text-white text-xs font-medium">
+                          {getDisplayName().charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">{getDisplayName()}</span>
+                    </div>
 
-                {/* Profile Dropdown (Mobile) */}
-                <div className="relative md:hidden">
+                    {/* Action Buttons */}
+                    <NavLink
+                      to="/profile"
+                      className={({ isActive }) =>
+                        `px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                          isActive
+                            ? "bg-gray-100 text-gray-900"
+                            : "text-gray-600 hover:bg-gray-100"
+                        }`
+                      }
+                    >
+                      Profile
+                    </NavLink>
+                    <button
+                      onClick={handleLogoutClick}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition"
+                    >
+                      Logout
+                    </button>
+                  </div>
+
+                  {/* Mobile Menu Button */}
                   <button
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1"
+                    className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition"
                   >
-                    <span className="text-sm">{getDisplayName()}</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                   </button>
-                  
-                  {isMobileMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-2 z-50">
-                      <Link
-                        to="/profile"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        Profile
-                      </Link>
-                      <Link
-                        to="/settings"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        Settings
-                      </Link>
-                      <hr className="my-1" />
-                      <button
-                        onClick={() => {
-                          handleLogoutClick();
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                      >
-                        Logout
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Desktop Buttons */}
-                <div className="hidden md:flex items-center gap-2">
-                  <Link
-                    to="/profile"
-                    className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition"
-                  >
-                    Profile
-                  </Link>
-                  <button
-                    className="rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition"
-                    onClick={handleLogoutClick}
-                  >
-                    Logout
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Link className="btn-secondary" to="/login">
-                  Login
-                </Link>
-                <Link className="btn-primary" to="/register">
-                  Register
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile Navigation Menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden border-t bg-white">
-            <div className="px-4 py-2 space-y-1">
-              {navLinks.map((link) => (
-                link.show && (
-                  <NavLink
-                    key={link.path}
-                    to={link.path}
-                    className={({ isActive }) =>
-                      `block rounded-lg px-3 py-2 text-sm font-medium transition ${
-                        isActive ? "bg-brand-100 text-brand-700" : "text-slate-700 hover:bg-slate-100"
-                      }`
-                    }
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    {link.name}
-                  </NavLink>
-                )
-              ))}
-              {user && (
-                <>
-                  <hr className="my-2" />
-                  <Link
-                    to="/profile"
-                    className="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Profile
-                  </Link>
-                  <Link
-                    to="/settings"
-                    className="block rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Settings
-                  </Link>
-                  <button
-                    onClick={() => {
-                      handleLogoutClick();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="block w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                  >
-                    Logout
-                  </button>
                 </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/login"
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 transition shadow-sm"
+                  >
+                    Register
+                  </Link>
+                </div>
               )}
             </div>
           </div>
+        </div>
+
+        {/* Mobile Menu Dropdown */}
+        {isMobileMenuOpen && user && (
+          <div className="md:hidden border-t border-gray-200 bg-white shadow-lg">
+            <div className="px-4 py-3 space-y-1">
+              {/* User Info in Mobile */}
+              <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 mb-2">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                  <span className="text-white text-base font-medium">
+                    {getDisplayName().charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">{getDisplayName()}</p>
+                  {roleConfig && (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${roleConfig.color}`}>
+                      <span>{roleConfig.icon}</span>
+                      <span>{roleConfig.label}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              {navLinks.map((link) => (
+                <NavLink
+                  key={link.path}
+                  to={link.path}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      isActive
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`
+                  }
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span className="text-lg">{link.icon}</span>
+                  <span>{link.name}</span>
+                </NavLink>
+              ))}
+              
+              <div className="border-t border-gray-100 pt-2 mt-2">
+                <NavLink
+                  to="/profile"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span className="text-lg">👤</span>
+                  <span>Profile</span>
+                </NavLink>
+                <NavLink
+                  to="/settings"
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span className="text-lg">⚙️</span>
+                  <span>Settings</span>
+                </NavLink>
+                <button
+                  onClick={() => {
+                    handleLogoutClick();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition"
+                >
+                  <span className="text-lg">🚪</span>
+                  <span>Logout</span>
+                </button>
+              </div>
+            </div>
+          </div>
         )}
-      </header>
+      </nav>
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-w-full shadow-xl">
-            <div className="text-center mb-4">
-              <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-96 max-w-full shadow-2xl transform transition-all">
+            <div className="text-center">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Confirm Logout</h3>
-              <p className="text-gray-600 mt-2">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Confirm Logout</h3>
+              <p className="text-gray-500 mb-6">
                 Are you sure you want to logout from your account?
               </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleLogout}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-              >
-                Logout
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-medium"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         </div>

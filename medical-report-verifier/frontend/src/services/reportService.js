@@ -2,12 +2,27 @@ import api from "./api";
 
 // ==================== REPORT APIs ====================
 
-// Upload report (Lab only)
+// Upload report (Lab only) - Traditional upload
 export const uploadReportApi = async (formData, onProgress) => {
   const response = await api.post("/reports/upload-report", formData, {
     headers: { "Content-Type": "multipart/form-data" },
     onUploadProgress: onProgress,
   });
+  return response.data;
+};
+
+// Upload report with QR code generation (Lab only)
+export const uploadReportWithQRApi = async (formData, onProgress) => {
+  const response = await api.post("/reports/upload-with-qr", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress: onProgress,
+  });
+  return response.data;
+};
+
+// Generate QR code for existing report (Lab/Patient/Admin)
+export const generateQRForReportApi = async (reportId) => {
+  const response = await api.post(`/reports/generate-qr/${reportId}`);
   return response.data;
 };
 
@@ -269,6 +284,21 @@ export const getUserStatsApi = async () => {
   return response.data;
 };
 
+// ==================== QR CODE UTILITIES ====================
+
+// Helper function to download QR code
+export const downloadQRCode = (qrDataUrl, filename = "qr-code.png") => {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = qrDataUrl;
+  link.click();
+};
+
+// Helper function to get verification URL
+export const getVerificationUrl = (reportHash) => {
+  return `${window.location.origin}/verify-qr?hash=${reportHash}`;
+};
+
 // ==================== UTILITY FUNCTIONS ====================
 
 // Helper function to handle file downloads
@@ -291,10 +321,28 @@ export const downloadFile = async (url, filename) => {
   }
 };
 
+// Format report hash for display
+export const formatReportHash = (hash) => {
+  if (!hash) return "";
+  if (hash.length <= 20) return hash;
+  return `${hash.substring(0, 12)}...${hash.substring(hash.length - 8)}`;
+};
+
+// Format file size
+export const formatFileSize = (bytes) => {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
+
 // Export all as default object for convenience
 export default {
   // Report APIs
   uploadReportApi,
+  uploadReportWithQRApi,
+  generateQRForReportApi,
   verifyReportApi,
   getReportByHashApi,
   getMyReportsApi,
@@ -345,6 +393,12 @@ export default {
   updateWalletAddressApi,
   getUserStatsApi,
   
+  // QR Utilities
+  downloadQRCode,
+  getVerificationUrl,
+  
   // Utilities
   downloadFile,
+  formatReportHash,
+  formatFileSize,
 };

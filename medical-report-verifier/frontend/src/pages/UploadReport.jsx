@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
-import { uploadReportApi } from "../services/reportService";
+import { uploadReportApi, uploadReportWithQRApi } from "../services/reportService";
 
 const UploadReport = () => {
   const { user } = useAuth();
@@ -11,6 +11,7 @@ const UploadReport = () => {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [patientId, setPatientId] = useState("");
+  const [patientName, setPatientName] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
   const [reportFile, setReportFile] = useState(null);
   const [reportType, setReportType] = useState("general");
@@ -20,9 +21,11 @@ const UploadReport = () => {
   const [doctorName, setDoctorName] = useState("");
   const [reportDate, setReportDate] = useState(new Date().toISOString().split("T")[0]);
   const [result, setResult] = useState(null);
+  const [qrCode, setQrCode] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [generateQR, setGenerateQR] = useState(true);
 
   const validateAndSetFile = (selectedFile) => {
     // Validate file size (max 10MB)
@@ -95,8 +98,24 @@ const UploadReport = () => {
   const removeFile = () => {
     setReportFile(null);
     setFilePreview(null);
+    setQrCode(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard!");
+  };
+
+  const downloadQR = () => {
+    if (qrCode) {
+      const link = document.createElement('a');
+      link.download = `qr-report-${result?.reportHash?.substring(0, 10) || 'report'}.png`;
+      link.href = qrCode;
+      link.click();
+      toast.success("QR code downloaded!");
     }
   };
 
@@ -115,10 +134,12 @@ const UploadReport = () => {
 
     setLoading(true);
     setUploadProgress(0);
+    setQrCode(null);
     
     const formData = new FormData();
     formData.append("reportFile", reportFile);
     formData.append("patientId", patientId);
+    if (patientName) formData.append("patientName", patientName);
     if (patientEmail) formData.append("patientEmail", patientEmail);
     formData.append("reportType", reportType);
     formData.append("reportTitle", reportTitle || `Medical Report - ${new Date().toLocaleDateString()}`);
@@ -126,20 +147,36 @@ const UploadReport = () => {
     if (diagnosis) formData.append("diagnosis", diagnosis);
     if (doctorName) formData.append("doctorName", doctorName);
     if (reportDate) formData.append("reportDate", reportDate);
+    formData.append("generateQR", generateQR);
 
     try {
-      const response = await uploadReportApi(formData, (progressEvent) => {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        setUploadProgress(percentCompleted);
-      });
+      let response;
+      if (generateQR) {
+        // Use the QR-enabled upload endpoint
+        response = await uploadReportWithQRApi(formData, (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        });
+        
+        if (response.data.success) {
+          setQrCode(response.data.qrCode);
+          toast.success("Report uploaded with QR code!");
+        }
+      } else {
+        // Use traditional upload
+        response = await uploadReportApi(formData, (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        });
+        toast.success("Report uploaded and anchored on blockchain successfully!");
+      }
       
       setResult(response.data);
-      toast.success("Report uploaded and anchored on blockchain successfully!");
       
       // Reset form after successful upload
       setTimeout(() => {
         navigate("/dashboard");
-      }, 2000);
+      }, 3000);
     } catch (error) {
       toast.error(error.response?.data?.message || "Upload failed. Please try again.");
     } finally {
@@ -189,6 +226,22 @@ const UploadReport = () => {
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* QR Code Toggle */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={generateQR}
+              onChange={(e) => setGenerateQR(e.target.checked)}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium">Generate QR Code for this report</span>
+          </label>
+          <p className="text-xs text-gray-500 mt-1">
+            When enabled, a QR code will be generated that can be scanned to instantly verify the report's authenticity.
+          </p>
+        </div>
+
         {/* File Upload Section */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4">Report File *</h2>
@@ -269,15 +322,26 @@ const UploadReport = () => {
         {/* Patient Information */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4">Patient Information</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Patient ID</label>
+              <label className="block text-sm font-medium mb-1">Patient ID *</label>
               <input
                 type="text"
                 className="w-full border rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., PAT001"
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Patient Name</label>
+              <input
+                type="text"
+                className="w-full border rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Full name"
+                value={patientName}
+                onChange={(e) => setPatientName(e.target.value)}
               />
             </div>
             <div>
@@ -291,9 +355,6 @@ const UploadReport = () => {
               />
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Either Patient ID or Patient Email is required
-          </p>
         </div>
 
         {/* Report Details */}
@@ -412,23 +473,67 @@ const UploadReport = () => {
               Uploading... {uploadProgress}%
             </>
           ) : (
-            "Upload & Anchor on Blockchain"
+            generateQR ? "Upload & Generate QR Code" : "Upload & Anchor on Blockchain"
           )}
         </button>
       </form>
 
-      {/* Result Display */}
-      {result && (
+      {/* QR Code Result Display */}
+      {qrCode && (
+        <div className="mt-8 bg-white rounded-lg shadow p-6 border-2 border-green-200">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-2xl">🎨</span>
+            <h2 className="text-xl font-semibold text-green-800">QR Code Generated!</h2>
+          </div>
+          
+          <div className="flex flex-col md:flex-row gap-6 items-center">
+            <div className="bg-white p-4 rounded-lg shadow">
+              <img src={qrCode} alt="QR Code" className="w-48 h-48" />
+            </div>
+            <div className="flex-1 space-y-3">
+              <p className="text-sm text-gray-600">
+                Scan this QR code with any mobile device to instantly verify the report's authenticity.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={downloadQR}
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm"
+                >
+                  📥 Download QR Code
+                </button>
+                <button
+                  onClick={() => window.open(`/verify-qr?hash=${result?.reportHash || result?.data?.report?.reportHash}`, '_blank')}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm"
+                >
+                  🔍 Test Verification
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-4 p-3 bg-gray-50 rounded">
+            <p className="text-xs text-gray-500 font-mono break-all">
+              <strong>Report Hash:</strong> {result?.reportHash || result?.data?.report?.reportHash}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              <strong>Verification URL:</strong> {`${window.location.origin}/verify-qr?hash=${result?.reportHash || result?.data?.report?.reportHash}`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Traditional Result Display */}
+      {result && !qrCode && (
         <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-6">
           <h2 className="text-xl font-semibold text-green-800 mb-4">Upload Result ✓</h2>
           <div className="space-y-2">
             <div>
               <p className="text-xs text-gray-600">Report Hash</p>
-              <p className="text-sm font-mono break-all bg-white p-2 rounded">{result.data?.report?.reportHash || result.report?.reportHash}</p>
+              <p className="text-sm font-mono break-all bg-white p-2 rounded">{result?.data?.report?.reportHash || result?.report?.reportHash}</p>
             </div>
             <div>
               <p className="text-xs text-gray-600">Transaction Hash</p>
-              <p className="text-sm font-mono break-all bg-white p-2 rounded">{result.data?.chainResult?.txHash || result.chainResult?.txHash}</p>
+              <p className="text-sm font-mono break-all bg-white p-2 rounded">{result?.data?.chainResult?.txHash || result?.chainResult?.txHash}</p>
             </div>
             <div className="flex items-center gap-2 mt-3">
               <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>

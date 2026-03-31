@@ -8,13 +8,16 @@ const {
   isBlockchainEnabled,
 } = require("../services/blockchainService");
 const { successResponse, errorResponse } = require("../utils/apiResponse");
+const QRCode = require("qrcode");
+const fs = require("fs");
+const path = require("path");
 
 // @desc    Upload report
 // @route   POST /api/reports/upload-report
 // @access  Private (Lab/Admin only)
 const uploadReport = async (req, res, next) => {
   try {
-    const { patientId, patientEmail, reportType = "general", reportTitle, findings, diagnosis, doctorName } = req.body;
+    const { patientId, patientEmail, reportType = "general", reportTitle, findings, diagnosis, doctorName, generateQR = true } = req.body;
     const file = req.file;
 
     if (!patientId || !file) {
@@ -79,10 +82,47 @@ const uploadReport = async (req, res, next) => {
       isVerified: true,
     });
 
-    // Add audit log
-    await report.addAuditLog("upload", req.user._id, req.user.role, { patientId, reportType }, req.ip);
+    // Generate QR code if requested
+    let qrCodeImage = null;
+    if (generateQR) {
+      const qrData = {
+        reportHash: reportHash,
+        patientId: patientId,
+        patientName: patient?.name || "Unknown",
+        labId: labId,
+        labName: req.user.hospitalName || req.user.name,
+        reportType: reportType,
+        reportTitle: reportTitle || "Medical Report",
+        contractAddress: process.env.CONTRACT_ADDRESS,
+        issuedDate: new Date().toISOString(),
+        verificationUrl: `${process.env.FRONTEND_URL}/verify-qr?hash=${reportHash}`
+      };
+      
+      qrCodeImage = await QRCode.toDataURL(JSON.stringify(qrData), {
+        errorCorrectionLevel: 'H',
+        width: 400,
+        margin: 2,
+        color: { dark: '#1a4d8c', light: '#ffffff' }
+      });
+      
+      // FIXED: Save to sepolia QR folder
+      const qrDir = path.join(__dirname, '../../smart-contract/qr-codes-sepolia');
+      if (!fs.existsSync(qrDir)) {
+        fs.mkdirSync(qrDir, { recursive: true });
+      }
+      const qrPath = path.join(qrDir, `report-${reportHash.substring(0, 10)}.png`);
+      const base64Data = qrCodeImage.replace(/^data:image\/png;base64,/, "");
+      fs.writeFileSync(qrPath, base64Data, 'base64');
+      
+      // Store QR code path in database
+      report.qrCodePath = qrPath;
+      await report.save();
+    }
 
-    return successResponse(res, 201, "Report uploaded and anchored on blockchain", {
+    // Add audit log
+    await report.addAuditLog("upload", req.user._id, req.user.role, { patientId, reportType, qrGenerated: generateQR }, req.ip);
+
+    const responseData = {
       report: {
         id: report._id,
         reportHash: report.reportHash,
@@ -94,6 +134,206 @@ const uploadReport = async (req, res, next) => {
         blockchainTxHash: report.blockchainTxHash,
       },
       chainResult,
+    };
+    
+    if (qrCodeImage) {
+      responseData.qrCode = qrCodeImage;
+      responseData.qrMessage = "QR code generated successfully! Scan to verify report.";
+    }
+
+    return successResponse(res, 201, "Report uploaded and anchored on blockchain", responseData);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Upload report with QR code (alternative endpoint)
+// @route   POST /api/reports/upload-with-qr
+// @access  Private (Lab/Admin only)
+const uploadReportWithQR = async (req, res, next) => {
+  try {
+    const { patientId, patientName, patientEmail, reportType = "general", reportTitle, findings, diagnosis, doctorName } = req.body;
+    const file = req.file;
+
+    if (!patientId || !file) {
+      return errorResponse(res, 400, "patientId and reportFile are required");
+    }
+
+    const reportHash = generateSHA256Hash(file.buffer);
+
+    const existingReport = await Report.findOne({ reportHash });
+    if (existingReport) {
+      return errorResponse(res, 409, "This report already exists in the system");
+    }
+
+    const labId = req.user.labId || `LAB-${req.user._id}`;
+
+    // Find patient if exists
+    let patient = null;
+    if (patientEmail) {
+      patient = await User.findOne({ email: patientEmail, role: "patient" });
+    } else {
+      patient = await User.findOne({ patientId, role: "patient" });
+    }
+
+    // Upload to blockchain
+    const chainResult = await addReportOnChain({
+      reportHash,
+      patientId,
+      labId,
+    });
+
+    // Create report
+    const report = await Report.create({
+      reportHash,
+      reportId: `RPT-${Date.now()}`,
+      patientId,
+      patient: patient?._id,
+      patientName: patient?.name || patientName,
+      patientEmail: patient?.email || patientEmail,
+      labId,
+      lab: req.user._id,
+      labName: req.user.hospitalName || req.user.name,
+      hospitalName: req.user.hospitalName,
+      fileName: file.originalname,
+      originalFileName: file.originalname,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+      fileData: file.buffer,
+      fileExtension: file.originalname.split('.').pop(),
+      reportType,
+      reportTitle: reportTitle || `Medical Report - ${new Date().toLocaleDateString()}`,
+      reportDate: new Date(),
+      findings,
+      diagnosis,
+      doctorName,
+      blockchainTxHash: chainResult.txHash,
+      blockNumber: chainResult.blockNumber,
+      uploadedBy: req.user._id,
+      uploadedByRole: req.user.role,
+      recordedAt: Date.now(),
+      uploadedAt: new Date(),
+      status: "active",
+      isVerified: true,
+    });
+
+    // Generate QR code
+    const qrData = {
+      reportHash: reportHash,
+      patientId: patientId,
+      patientName: patient?.name || patientName || "Unknown",
+      labId: labId,
+      labName: req.user.hospitalName || req.user.name,
+      reportType: reportType,
+      reportTitle: reportTitle || "Medical Report",
+      contractAddress: process.env.CONTRACT_ADDRESS,
+      issuedDate: new Date().toISOString(),
+      verificationUrl: `${process.env.FRONTEND_URL}/verify-qr?hash=${reportHash}`
+    };
+    
+    const qrCodeImage = await QRCode.toDataURL(JSON.stringify(qrData), {
+      errorCorrectionLevel: 'H',
+      width: 400,
+      margin: 2,
+      color: { dark: '#1a4d8c', light: '#ffffff' }
+    });
+    
+    // FIXED: Save to sepolia QR folder
+    const qrDir = path.join(__dirname, '../../smart-contract/qr-codes-sepolia');
+    if (!fs.existsSync(qrDir)) {
+      fs.mkdirSync(qrDir, { recursive: true });
+    }
+    const qrPath = path.join(qrDir, `report-${reportHash.substring(0, 10)}.png`);
+    const base64Data = qrCodeImage.replace(/^data:image\/png;base64,/, "");
+    fs.writeFileSync(qrPath, base64Data, 'base64');
+    
+    // Store QR code path in database
+    report.qrCodePath = qrPath;
+    await report.save();
+
+    // Add audit log
+    await report.addAuditLog("upload", req.user._id, req.user.role, { patientId, reportType, qrGenerated: true }, req.ip);
+
+    return successResponse(res, 201, "Report uploaded with QR code", {
+      success: true,
+      reportHash: reportHash,
+      reportId: report.reportId,
+      patientId: patientId,
+      patientName: patient?.name || patientName,
+      labName: req.user.hospitalName || req.user.name,
+      qrCode: qrCodeImage,
+      verificationUrl: qrData.verificationUrl,
+      message: "Report issued successfully with QR code!"
+    });
+  } catch (error) {
+    console.error("Upload with QR error:", error);
+    next(error);
+  }
+};
+
+// @desc    Generate QR code for existing report
+// @route   POST /api/reports/generate-qr/:reportId
+// @access  Private (Lab/Patient/Admin)
+const generateQRForReport = async (req, res, next) => {
+  try {
+    const { reportId } = req.params;
+    
+    const report = await Report.findById(reportId);
+    if (!report) {
+      return errorResponse(res, 404, "Report not found");
+    }
+    
+    // Check access
+    let hasAccess = false;
+    if (req.user.role === "patient" && report.patientId === req.user.patientId) hasAccess = true;
+    if (req.user.role === "lab" && report.labId === req.user.labId) hasAccess = true;
+    if (req.user.role === "admin") hasAccess = true;
+    
+    if (!hasAccess) {
+      return errorResponse(res, 403, "Not authorized to generate QR for this report");
+    }
+    
+    // Get patient info
+    const patient = await User.findById(report.patient);
+    
+    const qrData = {
+      reportHash: report.reportHash,
+      patientId: report.patientId,
+      patientName: report.patientName || patient?.name || "Unknown",
+      labId: report.labId,
+      labName: report.labName,
+      reportType: report.reportType,
+      reportTitle: report.reportTitle,
+      contractAddress: process.env.CONTRACT_ADDRESS,
+      issuedDate: report.reportDate.toISOString(),
+      verificationUrl: `${process.env.FRONTEND_URL}/verify-qr?hash=${report.reportHash}`
+    };
+    
+    const qrCodeImage = await QRCode.toDataURL(JSON.stringify(qrData), {
+      errorCorrectionLevel: 'H',
+      width: 400,
+      margin: 2,
+      color: { dark: '#1a4d8c', light: '#ffffff' }
+    });
+    
+    // FIXED: Save to sepolia QR folder
+    const qrDir = path.join(__dirname, '../../smart-contract/qr-codes-sepolia');
+    if (!fs.existsSync(qrDir)) {
+      fs.mkdirSync(qrDir, { recursive: true });
+    }
+    const qrPath = path.join(qrDir, `report-${report.reportHash.substring(0, 10)}.png`);
+    const base64Data = qrCodeImage.replace(/^data:image\/png;base64,/, "");
+    fs.writeFileSync(qrPath, base64Data, 'base64');
+    
+    report.qrCodePath = qrPath;
+    await report.save();
+    
+    await report.addAuditLog("qr_generated", req.user._id, req.user.role, { reportHash: report.reportHash }, req.ip);
+    
+    return successResponse(res, 200, "QR code generated", {
+      qrCode: qrCodeImage,
+      qrPath: qrPath,
+      verificationUrl: qrData.verificationUrl
     });
   } catch (error) {
     next(error);
@@ -150,6 +390,7 @@ const verifyReport = async (req, res, next) => {
         labId: dbReport.labId,
         reportDate: dbReport.reportDate,
         verifiedCount: dbReport.verifiedCount,
+        hasQR: !!dbReport.qrCodePath,
       } : null,
       fileStoredInDatabase: Boolean(dbReport),
       verificationSource: blockchainEnabled ? "blockchain+database" : "database-only-local-mode",
@@ -203,6 +444,7 @@ const getReportByHash = async (req, res, next) => {
         verifiedCount: dbReport.verifiedCount,
         blockchainTxHash: dbReport.blockchainTxHash,
         createdAt: dbReport.createdAt,
+        hasQR: !!dbReport.qrCodePath,
       };
 
       // Include patient info if authenticated and has access
@@ -409,6 +651,7 @@ const verifyReportById = async (req, res, next) => {
       verifiedCount: report.verifiedCount,
       lastVerifiedAt: report.lastVerifiedAt,
       blockchainVerified: blockchainValid,
+      hasQR: !!report.qrCodePath,
       message: isValid ? "Report is authentic" : "Report may have been tampered with"
     });
   } catch (error) {
@@ -572,6 +815,7 @@ const getReportSharingInfo = async (req, res, next) => {
       reportId: report._id,
       reportHash: report.reportHash,
       reportTitle: report.reportTitle,
+      hasQR: !!report.qrCodePath,
       sharedWith: report.sharedWith || []
     });
   } catch (error) {
@@ -586,6 +830,7 @@ const getReportStats = async (req, res, next) => {
   try {
     const totalReports = await Report.countDocuments();
     const verifiedReports = await Report.countDocuments({ verifiedCount: { $gt: 0 } });
+    const reportsWithQR = await Report.countDocuments({ qrCodePath: { $exists: true, $ne: null } });
     const uniquePatients = await Report.distinct("patientId");
     const uniqueLabs = await Report.distinct("labId");
     
@@ -618,6 +863,7 @@ const getReportStats = async (req, res, next) => {
     successResponse(res, 200, "Statistics fetched", {
       totalReports,
       verifiedReports,
+      reportsWithQR,
       totalVerifications: totalVerifications[0]?.total || 0,
       uniquePatientsCount: uniquePatients.length,
       uniqueLabsCount: uniqueLabs.length,
@@ -631,6 +877,8 @@ const getReportStats = async (req, res, next) => {
 
 module.exports = {
   uploadReport,
+  uploadReportWithQR,
+  generateQRForReport,
   verifyReport,
   getReportByHash,
   downloadReportFile,

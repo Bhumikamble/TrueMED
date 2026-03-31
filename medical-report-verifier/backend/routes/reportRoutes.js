@@ -2,6 +2,8 @@ const express = require("express");
 
 const {
   uploadReport,
+  uploadReportWithQR,
+  generateQRForReport,
   verifyReport,
   getReportByHash,
   downloadReportFile,
@@ -36,12 +38,27 @@ router.use(protect);
 router.get("/stats/overview", authorize("admin"), getReportStats);
 
 // ==================== LAB/ADMIN ROUTES ====================
-// Upload report (Lab/Admin only)
+// Upload report (Lab/Admin only) - Traditional upload
 router.post(
   "/upload-report",
   authorize("lab", "admin"),
   upload.single("reportFile"),
   uploadReport
+);
+
+// Upload report with automatic QR generation (Lab/Admin only)
+router.post(
+  "/upload-with-qr",
+  authorize("lab", "admin"),
+  upload.single("reportFile"),
+  uploadReportWithQR
+);
+
+// Generate QR code for existing report (Lab/Patient/Admin)
+router.post(
+  "/generate-qr/:reportId",
+  authorize("lab", "patient", "admin"),
+  generateQRForReport
 );
 
 // ==================== PATIENT ROUTES ====================

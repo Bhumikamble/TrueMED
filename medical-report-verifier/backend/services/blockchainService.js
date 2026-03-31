@@ -19,8 +19,9 @@ const isBlockchainEnabled = () => {
     return false;
   }
 
+  // Use BLOCKCHAIN_RPC_URL instead of RPC_URL
   const isEnabled = Boolean(
-    process.env.RPC_URL && 
+    process.env.BLOCKCHAIN_RPC_URL && 
     process.env.PRIVATE_KEY && 
     process.env.CONTRACT_ADDRESS
   );
@@ -46,12 +47,12 @@ const getContract = () => {
     throw new Error("Blockchain is disabled or not configured. Please check your .env file.");
   }
 
-  const { RPC_URL, PRIVATE_KEY, CONTRACT_ADDRESS } = process.env;
+  const { BLOCKCHAIN_RPC_URL, PRIVATE_KEY, CONTRACT_ADDRESS } = process.env;
 
   try {
     // Validate configuration
-    if (!RPC_URL) {
-      throw new Error("RPC_URL is missing in environment variables");
+    if (!BLOCKCHAIN_RPC_URL) {
+      throw new Error("BLOCKCHAIN_RPC_URL is missing in environment variables");
     }
     if (!PRIVATE_KEY) {
       throw new Error("PRIVATE_KEY is missing in environment variables");
@@ -67,14 +68,14 @@ const getContract = () => {
 
     const normalizedPrivateKey = PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`;
     
-    provider = new ethers.JsonRpcProvider(RPC_URL);
+    provider = new ethers.JsonRpcProvider(BLOCKCHAIN_RPC_URL);
     wallet = new ethers.Wallet(normalizedPrivateKey, provider);
     cachedContract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, wallet);
     cachedProvider = provider;
     cachedWallet = wallet;
     
     console.log(`✅ Blockchain contract loaded at: ${CONTRACT_ADDRESS}`);
-    console.log(`   Connected to: ${RPC_URL}`);
+    console.log(`   Connected to: ${BLOCKCHAIN_RPC_URL}`);
     console.log(`   Wallet address: ${wallet.address}`);
     
     return cachedContract;
@@ -178,6 +179,7 @@ const verifyReportOnChain = async (reportHash) => {
 
 /**
  * Get report from blockchain
+ * Handles both array and struct/tuple return types
  */
 const getReportFromChain = async (reportHash) => {
   if (!isBlockchainEnabled()) {
@@ -189,16 +191,21 @@ const getReportFromChain = async (reportHash) => {
     const contractInstance = getContract();
     const report = await contractInstance.getReport(reportHash);
     
+    // Handle both array and object/struct access
+    // Your contract returns a tuple: (string reportHash, string patientId, string labId, uint256 timestamp, bool exists)
     const result = {
-      reportHash: report.reportHash,
-      patientId: report.patientId,
-      labId: report.labId,
-      timestamp: Number(report.timestamp),
-      exists: report.exists,
+      reportHash: report.reportHash || report[0],
+      patientId: report.patientId || report[1],
+      labId: report.labId || report[2],
+      timestamp: Number(report.timestamp || report[3]),
+      exists: report.exists || report[4],
     };
     
     if (result.exists) {
       console.log(`✅ Found report on blockchain: ${reportHash.substring(0, 20)}...`);
+      console.log(`   Patient: ${result.patientId}`);
+      console.log(`   Lab: ${result.labId}`);
+      console.log(`   Timestamp: ${new Date(result.timestamp * 1000).toLocaleString()}`);
     } else {
       console.log(`❌ Report not found on blockchain: ${reportHash.substring(0, 20)}...`);
     }

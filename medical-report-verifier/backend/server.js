@@ -12,6 +12,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const patientRoutes = require("./routes/patientRoutes");
 const employerRoutes = require("./routes/employerRoutes");
 const labRoutes = require("./routes/labRoutes");
+const qrRoutes = require("./routes/qrRoutes"); // 👈 ADD QR ROUTES
 const { notFoundHandler, errorHandler } = require("./middleware/errorMiddleware");
 
 dotenv.config();
@@ -23,6 +24,7 @@ const PORT = process.env.PORT || 5000;
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://localhost:3000", // 👈 ADD for QR verifier
   process.env.CORS_ORIGIN,
 ].filter(Boolean);
 
@@ -119,8 +121,13 @@ app.get("/api/health/detailed", async (req, res) => {
       database: dbStatus,
       blockchain: {
         enabled: process.env.BLOCKCHAIN_ENABLED === "true",
-        network: "sepolia",
-        contract: process.env.CONTRACT_ADDRESS ? "deployed" : "not deployed",
+        network: process.env.BLOCKCHAIN_NETWORK || "localhost",
+        contractAddress: process.env.CONTRACT_ADDRESS || "not deployed",
+        rpcUrl: process.env.BLOCKCHAIN_RPC_URL || "http://localhost:8545",
+      },
+      qr: {
+        enabled: true,
+        frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
       },
     });
   } catch (error) {
@@ -139,6 +146,12 @@ app.get("/api/version", (req, res) => {
     version: "1.0.0",
     name: "TrueMED Blockchain Medical Report Verifier",
     description: "Tamper-evident verification platform for medical reports",
+    features: {
+      blockchain: "Ethereum/Sepolia",
+      storage: "IPFS",
+      verification: "QR Code + Hash",
+      roles: ["Hospital", "Lab", "Patient", "Employer", "Admin"],
+    },
   });
 });
 
@@ -149,6 +162,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/patient", patientRoutes);
 app.use("/api/employer", employerRoutes);
 app.use("/api/lab", labRoutes);
+app.use("/api/qr", qrRoutes); // 👈 ADD QR ROUTES
 
 // Root endpoint
 app.get("/", (req, res) => {
@@ -158,6 +172,7 @@ app.get("/", (req, res) => {
     version: "1.0.0",
     endpoints: {
       health: "/api/health",
+      healthDetailed: "/api/health/detailed",
       version: "/api/version",
       auth: "/api/auth",
       reports: "/api/reports",
@@ -165,6 +180,11 @@ app.get("/", (req, res) => {
       employer: "/api/employer",
       lab: "/api/lab",
       admin: "/api/admin",
+      qr: {
+        generate: "POST /api/qr/generate-qr",
+        verify: "GET /api/qr/verify/:documentHash",
+        status: "GET /api/qr/status/:documentHash",
+      },
     },
     documentation: "https://github.com/yourusername/medical-report-verifier",
   });
@@ -219,7 +239,9 @@ const startServer = async () => {
       console.log(`⛓️  Blockchain mode: ${process.env.BLOCKCHAIN_ENABLED === "true" ? "ENABLED" : "DISABLED"}`);
       if (process.env.BLOCKCHAIN_ENABLED === "true") {
         console.log(`📜 Contract address: ${process.env.CONTRACT_ADDRESS || "Not deployed"}`);
+        console.log(`🌐 RPC URL: ${process.env.BLOCKCHAIN_RPC_URL || "http://localhost:8545"}`);
       }
+      console.log(`📱 QR Verification URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}/verify`);
       console.log("========================================\n");
     });
     
